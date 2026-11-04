@@ -19,7 +19,7 @@ class Reward_model extends Model
     public function balance_for(int $residentId): int
     {
         $earned = (int) eco_db_one('SELECT COALESCE(SUM(points),0) AS n FROM dropoff_logs WHERE resident_id = ?', [$residentId])['n'];
-        $spent  = (int) eco_db_one('SELECT COALESCE(SUM(points_cost),0) AS n FROM redemptions WHERE resident_id = ? AND status <> "rejected"', [$residentId])['n'];
+        $spent  = (int) eco_db_one('SELECT COALESCE(SUM(points_cost),0) AS n FROM redemptions WHERE resident_id = ? AND status <> ?', [$residentId, 'rejected'])['n'];
         return $earned - $spent;
     }
 

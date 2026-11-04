@@ -83,6 +83,6 @@ class Dropoffs extends Controller
 
     private function User_lookup(string $ecoId): ?array
     {
-        return eco_db_one('SELECT id, name, eco_id, barangay FROM users WHERE eco_id = ? AND role = "resident"', [$ecoId]);
+        return eco_db_one('SELECT id, name, eco_id, barangay FROM users WHERE eco_id = ? AND role = ?', [$ecoId, 'resident']);
     }
 }

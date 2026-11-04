@@ -17,15 +17,15 @@ class User_model extends Model
 
     public function find_resident_by_eco_id(string $ecoId): ?array
     {
-        return eco_db_one('SELECT id, name, eco_id, barangay FROM users WHERE eco_id = ? AND role = "resident"', [$ecoId]);
+        return eco_db_one('SELECT id, name, eco_id, barangay FROM users WHERE eco_id = ? AND role = ?', [$ecoId, 'resident']);
     }
 
     public function create_resident(array $d): int
     {
         $ecoId = 'ECO-' . strtoupper(bin2hex(random_bytes(4)));
         return eco_db_insert(
-            'INSERT INTO users (username, name, email, password_hash, role, phone, barangay, eco_id) VALUES (?, ?, ?, ?, "resident", ?, ?, ?)',
-            [$d['email'], $d['name'], $d['email'], $d['password_hash'], $d['phone'], $d['barangay'], $ecoId]
+            'INSERT INTO users (username, name, email, password_hash, role, phone, barangay, eco_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$d['email'], $d['name'], $d['email'], $d['password_hash'], 'resident', $d['phone'], $d['barangay'], $ecoId]
         );
     }
 
@@ -47,6 +47,6 @@ class User_model extends Model
 
     public function residents_in_zone(string $zone): array
     {
-        return eco_db_all('SELECT id, phone FROM users WHERE role = "resident" AND barangay = ?', [$zone]);
+        return eco_db_all('SELECT id, phone FROM users WHERE role = ? AND barangay = ?', ['resident', $zone]);
     }
 }

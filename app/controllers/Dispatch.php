@@ -20,7 +20,7 @@ class Dispatch extends Controller
         } elseif ($user['role'] === 'collector') {
             $routes = $this->Dispatch_model->for_collector((int) $user['id']);
         } else {
-            $routes = $this->Dispatch_model->for_resident((int) $user['id']);
+            $this->api->respond(['routes' => $this->Dispatch_model->pickups_for_resident((int) $user['id'])]);
         }
         foreach ($routes as &$r) {
             $stops = $this->Dispatch_model->stops((int) $r['id']);

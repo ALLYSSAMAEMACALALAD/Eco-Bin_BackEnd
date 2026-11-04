@@ -19,7 +19,7 @@ class Schedules extends Controller
         $this->api->require_method('GET');
         $user = eco_current_user(['resident', 'collector', 'admin']);
         $rows = $user['role'] === 'resident'
-            ? $this->Schedule_model->for_zone($user['barangay'] ?? '')
+            ? $this->Schedule_model->for_resident(trim($user['barangay'] ?? ''))
             : $this->Schedule_model->all();
         $this->api->respond(['schedules' => $rows]);
     }

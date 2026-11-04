@@ -22,6 +22,39 @@ class Dispatch_model extends Model
         return eco_db_all('SELECT DISTINCT ' . self::ROUTE_COLUMNS . ' JOIN route_stops s ON s.route_id = r.id WHERE s.resident_id = ? ORDER BY r.route_date DESC', [$userId]);
     }
 
+    public function pickups_for_resident(int $userId): array
+    {
+        $rows = eco_db_all(
+            'SELECT r.id, r.name, r.route_date, r.status, s.id AS stop_id, s.sequence_no, s.address, s.status AS stop_status
+            FROM routes r JOIN route_stops s ON s.route_id = r.id
+            WHERE s.resident_id = ? OR s.resident_id IS NULL
+            ORDER BY r.route_date, r.id, s.sequence_no',
+            [$userId]
+        );
+
+        $routes = [];
+        foreach ($rows as $row) {
+            $routeId = (int) $row['id'];
+            if (!isset($routes[$routeId])) {
+                $routes[$routeId] = [
+                    'id' => $routeId,
+                    'name' => $row['name'],
+                    'route_date' => $row['route_date'],
+                    'status' => $row['status'],
+                    'stops' => [],
+                ];
+            }
+            $routes[$routeId]['stops'][] = [
+                'id' => (int) $row['stop_id'],
+                'sequence_no' => (int) $row['sequence_no'],
+                'address' => $row['address'],
+                'status' => $row['stop_status'],
+            ];
+        }
+
+        return array_values($routes);
+    }
+
     public function find(int $id): ?array
     {
         return eco_db_one('SELECT * FROM routes WHERE id = ?', [$id]);

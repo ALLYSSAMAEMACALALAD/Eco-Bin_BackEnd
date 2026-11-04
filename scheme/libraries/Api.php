@@ -622,7 +622,7 @@ class Api
 
         $hashed_refresh = hash_hmac('sha256', (string) $refresh_token, $this->refresh_token_key);
 
-        $this->cleanup_expired_refresh_tokens();
+        $this->cleanup_expired_refresh_tokens($user_id);
 
         $expires_at = date('Y-m-d H:i:s', $now + $this->refresh_token_expiration);
 

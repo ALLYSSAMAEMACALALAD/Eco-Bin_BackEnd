@@ -16,6 +16,12 @@ class Schedule_model extends Model
         return eco_db_all('SELECT * FROM schedules WHERE zone = ? ORDER BY ' . self::DAY_ORDER, [$zone]);
     }
 
+    public function for_resident(string $zone): array
+    {
+        $schedules = $zone !== '' ? $this->for_zone($zone) : [];
+        return $schedules ?: $this->all();
+    }
+
     public function create(array $s, int $by): int
     {
         return eco_db_insert('INSERT INTO schedules (zone, collection_day, time_slot, waste_type, created_by) VALUES (?, ?, ?, ?, ?)',

@@ -24,3 +24,8 @@ runtime/*
 
 # OS
 Thumbs.db
+
+node_modules/
+
+# User-uploaded files
+/public/uploads/
