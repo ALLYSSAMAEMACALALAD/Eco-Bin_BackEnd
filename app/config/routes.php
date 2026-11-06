@@ -1,6 +1,6 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
-
+/** @var Router $router */
 /*
  * Eco-Bin API routes. Every endpoint is JSON under /api.
  * Role checks happen inside each controller via eco_current_user([...roles]).
