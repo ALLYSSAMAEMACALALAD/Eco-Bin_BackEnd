@@ -1,6 +1,6 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
-
+/** @var Router $router */
 /*
  * Eco-Bin API routes. Every endpoint is JSON under /api.
  * Role checks happen inside each controller via eco_current_user([...roles]).
@@ -57,3 +57,15 @@ $router->get('/api/analytics',              'Analytics::summary');
 $router->get('/api/admin/users',            'Admin::users');
 $router->post('/api/admin/users',           'Admin::createStaff');
 $router->get('/api/admin/audit-logs',       'Admin::auditLogs');
+
+
+
+$router->post(
+    '/api/auth/forgot-password',
+    'PasswordRecovery::request'
+);
+
+$router->post(
+    '/api/auth/reset-password',
+    'PasswordRecovery::reset'
+);
