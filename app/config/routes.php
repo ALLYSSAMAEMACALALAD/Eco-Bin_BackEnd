@@ -57,3 +57,15 @@ $router->get('/api/analytics',              'Analytics::summary');
 $router->get('/api/admin/users',            'Admin::users');
 $router->post('/api/admin/users',           'Admin::createStaff');
 $router->get('/api/admin/audit-logs',       'Admin::auditLogs');
+
+
+
+$router->post(
+    '/api/auth/forgot-password',
+    'PasswordRecovery::request'
+);
+
+$router->post(
+    '/api/auth/reset-password',
+    'PasswordRecovery::reset'
+);
