@@ -27,3 +27,6 @@ RUN sed -i 's|DocumentRoot /var/www/html|DocumentRoot ${APACHE_DOCUMENT_ROOT}|g'
 EXPOSE 80
 
 CMD ["sh", "-c", "php /var/www/html/public/index.php migrate && exec apache2-foreground"]
+
+RUN echo "upload_max_filesize=8M" > /usr/local/etc/php/conf.d/uploads.ini \
+ && echo "post_max_size=10M" >> /usr/local/etc/php/conf.d/uploads.ini
