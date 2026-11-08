@@ -15,6 +15,11 @@ class User_model extends Model
         return eco_db_one('SELECT id, name, email, phone, barangay, role, eco_id, password_hash AS password FROM users WHERE email = ?', [$email]);
     }
 
+    public function email_in_use(string $email, int $exceptId): bool
+    {
+        return eco_db_one('SELECT id FROM users WHERE email = ? AND id <> ?', [$email, $exceptId]) !== null;
+    }
+
     public function find_resident_by_eco_id(string $ecoId): ?array
     {
         return eco_db_one('SELECT id, name, eco_id, barangay FROM users WHERE eco_id = ? AND role = ?', [$ecoId, 'resident']);
@@ -34,6 +39,14 @@ class User_model extends Model
         return eco_db_insert(
             'INSERT INTO users (username, name, email, password_hash, role, phone, barangay) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$d['email'], $d['name'], $d['email'], $d['password_hash'], $d['role'], $d['phone'], $d['barangay']]
+        );
+    }
+
+    public function update_profile(int $id, array $d): void
+    {
+        eco_db_exec(
+            'UPDATE users SET username = ?, name = ?, email = ?, phone = ?, barangay = ?, role = ?, updated_at = NOW() WHERE id = ?',
+            [$d['email'], $d['name'], $d['email'], $d['phone'], $d['barangay'], $d['role'], $id]
         );
     }
 

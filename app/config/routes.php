@@ -61,4 +61,5 @@ $router->get('/api/reports/history',        'Reports::history');
 $router->post('/api/reports/history',       'Reports::history');
 $router->get('/api/admin/users',            'Admin::users');
 $router->post('/api/admin/users',           'Admin::createStaff');
+$router->put('/api/admin/users/{id}',        'Admin::updateUser');
 $router->get('/api/admin/audit-logs',       'Admin::auditLogs');

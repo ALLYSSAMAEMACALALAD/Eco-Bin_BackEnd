@@ -48,6 +48,51 @@ class Admin extends Controller
         $this->api->respond(['id' => $id, 'role' => $role], 201);
     }
 
+    public function updateUser($id)
+    {
+        $this->api->require_method('PUT');
+        $admin = eco_current_user(['admin']);
+        $id = filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($id === false) {
+            $this->api->respond_error('Invalid user ID.', 422);
+        }
+
+        $user = $this->User_model->find_by_id((int) $id);
+        if (!$user) {
+            $this->api->respond_error('User not found.', 404);
+        }
+
+        $in = $this->api->body();
+        $name = trim((string) ($in['name'] ?? ''));
+        $email = strtolower(trim((string) ($in['email'] ?? '')));
+        $phone = trim((string) ($in['phone'] ?? ''));
+        $barangay = trim((string) ($in['barangay'] ?? ''));
+        $role = $in['role'] ?? '';
+
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->api->respond_error('A name and valid email are required.', 422);
+        }
+        if (!in_array($role, ['resident', 'collector', 'admin'], true)) {
+            $this->api->respond_error('Invalid user role.', 422);
+        }
+        if ($this->User_model->email_in_use($email, (int) $id)) {
+            $this->api->respond_error('An account with this email already exists.', 409);
+        }
+        if ((int) $id === (int) $admin['id'] && $role !== 'admin') {
+            $this->api->respond_error('You cannot change your own admin role.', 422);
+        }
+
+        $this->User_model->update_profile((int) $id, [
+            'name' => $name,
+            'email' => $email,
+            'phone' => $phone !== '' ? $phone : null,
+            'barangay' => $barangay !== '' ? $barangay : null,
+            'role' => $role,
+        ]);
+        eco_audit((int) $admin['id'], 'user_updated', "user:$id", $role);
+        $this->api->respond(['ok' => true]);
+    }
+
     public function auditLogs()
     {
         $this->api->require_method('GET');
