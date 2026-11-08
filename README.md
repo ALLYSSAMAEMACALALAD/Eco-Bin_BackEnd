@@ -46,12 +46,13 @@ export DB_HOST=127.0.0.1 DB_USER=root DB_PASSWORD=... DB_NAME=ecobin
 export JWT_SECRET=$(php -r 'echo bin2hex(random_bytes(32));')
 export REFRESH_TOKEN_KEY=$(php -r 'echo bin2hex(random_bytes(32));')
 # create the database first:  CREATE DATABASE ecobin CHARACTER SET utf8mb4;
-php public/index.php migrate          # runs migrations 001-006
+php public/index.php migrate          # runs pending migrations
 php -S localhost:8080 -t public public/index.php
 ```
 
 PHP 8.2 or newer, with the `pdo_mysql`, `curl` and `fileinfo` extensions.
 If the database contains the older Eco-Bin schema, back it up before migrating. Migration 003 archives its original tables as `legacy_*`, and migration 006 imports compatible records into the current schema; the archived tables are retained.
+The Docker image runs pending migrations before Apache starts. For other production setups, run `php public/index.php migrate` after configuring the database and before serving requests.
 
 **2. Frontend**
 
@@ -62,6 +63,8 @@ npm run dev        # http://localhost:5173, proxies /api and /uploads to :8080
 ```
 
 If the backend uses another local URL, set `ECO_BIN_API_TARGET` before starting Vite (for example, `http://localhost:8000`).
+
+For a separately deployed frontend and backend, set the frontend build variable `VITE_API_URL` to the backend origin (for example, `https://eco-bin-backend.onrender.com`). Set the backend `CORS_ORIGIN` environment variable to the exact frontend origin (for example, `https://eco-bin-front-end-5cv3.vercel.app`, without a trailing slash). Multiple origins can be comma-separated.
 
 **3. First admin**
 

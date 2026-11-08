@@ -1,15 +1,21 @@
 <?php
-header('Access-Control-Allow-Origin: https://eco-bin-front-end-5cv3.vercel.app');
+$allowedOrigins = [
+    'https://eco-bin-front-end-5cv3.vercel.app',
+    'http://localhost:5173',
+];
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if (in_array($origin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+}
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Authorization, Content-Type');
+header('Access-Control-Allow-Headers: Authorization, Content-Type, Idempotency-Key, Accept');
 header('Access-Control-Max-Age: 86400');
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
-
-// ... dito ang kasalukuyang laman ng index.php ...
 
 define('PREVENT_DIRECT_ACCESS', TRUE);
 /**

@@ -63,3 +63,7 @@ $router->get('/api/admin/users',            'Admin::users');
 $router->post('/api/admin/users',           'Admin::createStaff');
 $router->put('/api/admin/users/{id}',        'Admin::updateUser');
 $router->get('/api/admin/audit-logs',       'Admin::auditLogs');
+
+// forgot password
+$router->post('/api/auth/forgot-password', 'Auth::forgotPassword');
+$router->post('/api/auth/reset-password',  'Auth::resetPassword');
