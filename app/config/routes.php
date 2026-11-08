@@ -40,6 +40,9 @@ $router->get('/api/dropoffs/lookup/{ecoId}',       'Dropoffs::lookup');
 
 // Rewards and redemptions
 $router->get('/api/rewards',                              'Rewards::rewards');
+$router->post('/api/rewards',                             'Rewards::createReward');
+$router->put('/api/rewards/{id}',                         'Rewards::updateReward');
+$router->delete('/api/rewards/{id}',                     'Rewards::deleteReward');
 $router->get('/api/balance',                              'Rewards::balance');
 $router->get('/api/redemptions',                          'Rewards::index');
 $router->post('/api/redemptions',                         'Rewards::redeem');
@@ -54,6 +57,8 @@ $router->patch('/api/dumping-reports/{id}/status',    'Dumping::updateStatus');
 
 // Analytics and administration
 $router->get('/api/analytics',              'Analytics::summary');
+$router->get('/api/reports/history',        'Reports::history');
+$router->post('/api/reports/history',       'Reports::history');
 $router->get('/api/admin/users',            'Admin::users');
 $router->post('/api/admin/users',           'Admin::createStaff');
 $router->get('/api/admin/audit-logs',       'Admin::auditLogs');
