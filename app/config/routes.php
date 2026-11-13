@@ -45,6 +45,7 @@ $router->get('/api/dropoffs/transactions/{txnRef}', 'Dropoffs::transactions');
 
 // Rewards and redemptions
 $router->get('/api/rewards',                              'Rewards::rewards');
+$router->post('/api/rewards/upload-image',          'Rewards::uploadImage');
 $router->post('/api/rewards',                             'Rewards::createReward');
 $router->put('/api/rewards/{id}',                         'Rewards::updateReward');
 $router->delete('/api/rewards/{id}',                     'Rewards::deleteReward');

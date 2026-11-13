@@ -154,6 +154,19 @@
                 $this->api->respond(['ok' => true]);
             }
 
+            /** Admin uploads a reward image to cloud storage; returns the hosted URL. */
+            public function uploadImage()
+            {
+                $this->api->require_method('POST');
+                eco_current_user(['admin']);
+
+                if (empty($_FILES['photo']['tmp_name'])) {
+                    $this->api->respond_error('An image is required.', 422);
+                }
+                $url = eco_store_photo($_FILES['photo']);
+                $this->api->respond(['image_url' => $url], 201);
+            }
+
             /** Admin adds a new reward item. */
             public function createReward()
             {
