@@ -110,7 +110,6 @@ function eco_send_sms(?string $phone, string $message): bool
         ]);
         curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        curl_close($ch);
         return $code >= 200 && $code < 300;
     }
     return false; // Twilio is not wired up yet
@@ -158,7 +157,6 @@ function eco_send_mail(?string $to, string $toName, string $subject, string $htm
         $body   = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $error  = curl_error($ch);
-        curl_close($ch);
 
         if ($body !== false && $status >= 200 && $status < 300) return true;
 

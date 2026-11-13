@@ -95,7 +95,6 @@ class Dumping extends Controller
                 ],
             ]);
             $body = json_decode((string) curl_exec($ch), true);
-            curl_close($ch);
             if (!empty($body['secure_url'])) return $body['secure_url'];
             error_log('Cloudinary upload failed: ' . json_encode($body));
             $this->api->respond_error('Photo upload to storage failed. Please try again.', 502);

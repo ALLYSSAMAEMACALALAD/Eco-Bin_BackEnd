@@ -312,7 +312,6 @@ class Auth extends Controller
         ]);
         $body = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        curl_close($ch);
 
         if ($body === false || $status < 200 || $status >= 300) return [];
 
