@@ -4,8 +4,8 @@ FROM php:${PHP_VERSION}-apache
  
 # Install database and Cloudinary upload extensions
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libcurl4-openssl-dev \
- && docker-php-ext-install pdo pdo_mysql curl \
+ && apt-get install -y --no-install-recommends libcurl4-openssl-dev libzip-dev unzip \
+ && docker-php-ext-install pdo pdo_mysql curl zip \
  && rm -rf /var/lib/apt/lists/*
  
 # Enable Apache mod_rewrite
