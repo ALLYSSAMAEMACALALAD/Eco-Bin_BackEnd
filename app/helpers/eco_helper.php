@@ -44,6 +44,52 @@ function eco_db_exec(string $sql, array $args = []): int
     return lava_instance()->db->raw($sql, $args)->rowCount();
 }
 
+/**
+ * Stores an uploaded photo to Cloudinary when configured, otherwise into public/uploads.
+ * Validates size and real MIME type. Returns the URL to persist. Exits the request on failure.
+ */
+function eco_store_photo(array $file): string
+{
+    $imageTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+    $api = lava_instance()->api;
+
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        $api->respond_error('Photo upload failed.', 422);
+    }
+    if ($file['size'] > config_item('upload_max_bytes')) {
+        $api->respond_error('Photo must be 5 MB or smaller.', 422);
+    }
+    $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    if (!isset($imageTypes[$mime])) {
+        $api->respond_error('Photo must be a JPEG, PNG or WebP image.', 422);
+    }
+
+    $cloud  = config_item('cloudinary_cloud_name');
+    $preset = config_item('cloudinary_upload_preset');
+    if ($cloud && $preset) {
+        $ch = curl_init("https://api.cloudinary.com/v1_1/$cloud/image/upload");
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POSTFIELDS => [
+                'file' => new \CURLFile($file['tmp_name'], $mime, 'photo.' . $imageTypes[$mime]),
+                'upload_preset' => $preset,
+            ],
+        ]);
+        $body = json_decode((string) curl_exec($ch), true);
+        if (!empty($body['secure_url'])) return $body['secure_url'];
+        error_log('Cloudinary upload failed: ' . json_encode($body));
+        $api->respond_error('Photo upload to storage failed. Please try again.', 502);
+    }
+
+    $dir = ROOT_DIR . PUBLIC_DIR . '/uploads';
+    if (!is_dir($dir)) mkdir($dir, 0775, true);
+    $name = bin2hex(random_bytes(12)) . '.' . $imageTypes[$mime];
+    if (!move_uploaded_file($file['tmp_name'], "$dir/$name")) {
+        $api->respond_error('Photo upload failed.', 422);
+    }
+    return "/uploads/$name";
+}
+
 /* ---------- Role-based access control ---------- */
 
 /**

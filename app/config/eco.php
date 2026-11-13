@@ -3,8 +3,19 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 
 /* Eco-Bin application settings. Secrets come from environment variables. */
 
-// Points earned per kilogram of sorted, verified recyclables
-$config['points_per_kg'] = ['plastic' => 10, 'paper' => 5, 'metal' => 20, 'glass' => 8];
+// Recyclable drop-off materials. Points are awarded per unit ('kg' or 'pcs').
+// plastic_bottle is counted per piece (0.5 points each), the rest per kilogram.
+$config['dropoff_materials'] = [
+    'plastic'        => ['label' => 'Plastic',             'unit' => 'kg',  'points' => 10],
+    'plastic_bottle' => ['label' => 'Plastic bottles',     'unit' => 'pcs', 'points' => 0.5],
+    'paper'          => ['label' => 'Paper',               'unit' => 'kg',  'points' => 5],
+    'cardboard'      => ['label' => 'Cardboard & cartons', 'unit' => 'kg',  'points' => 5],
+    'metal'          => ['label' => 'Scrap metal',         'unit' => 'kg',  'points' => 20],
+    'aluminum'       => ['label' => 'Aluminum cans',       'unit' => 'kg',  'points' => 15],
+    'glass'          => ['label' => 'Glass',               'unit' => 'kg',  'points' => 8],
+    'ewaste'         => ['label' => 'E-waste',             'unit' => 'kg',  'points' => 25],
+    'textile'        => ['label' => 'Textiles / tela',     'unit' => 'kg',  'points' => 4],
+];
 
 $config['upload_max_bytes'] = 5 * 1024 * 1024;
 

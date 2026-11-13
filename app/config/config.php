@@ -397,7 +397,7 @@ $config['security_headers'] = [
     'coop'               => 'same-origin',
 
     // ── API ──
-    'api_max_body' => 1048576,
+    'api_max_body' => 6291456, // 6 MB — phone photos run through client-side compression, this is headroom
     'cors' => [
         'allowed_origins' => array_values(array_filter(array_map(
             'trim',

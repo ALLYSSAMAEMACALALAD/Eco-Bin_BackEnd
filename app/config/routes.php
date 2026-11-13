@@ -41,6 +41,7 @@ $router->get('/api/hubs',                          'Dropoffs::hubs');
 $router->get('/api/dropoffs',                      'Dropoffs::index');
 $router->post('/api/dropoffs',                     'Dropoffs::store');
 $router->get('/api/dropoffs/lookup/{ecoId}',       'Dropoffs::lookup');
+$router->get('/api/dropoffs/transactions/{txnRef}', 'Dropoffs::transactions');
 
 // Rewards and redemptions
 $router->get('/api/rewards',                              'Rewards::rewards');

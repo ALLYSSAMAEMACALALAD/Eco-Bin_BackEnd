@@ -29,7 +29,7 @@ class Dropoff_model extends Model
 
     public function create(array $d): int
     {
-        return eco_db_insert('INSERT INTO dropoff_logs (txn_ref, resident_id, hub_id, collector_id, material, weight_kg, points) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$d['txn_ref'], $d['resident_id'], $d['hub_id'], $d['collector_id'], $d['material'], $d['weight_kg'], $d['points']]);
+        return eco_db_insert('INSERT INTO dropoff_logs (txn_ref, resident_id, hub_id, collector_id, material, unit, quantity, weight_kg, points, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [$d['txn_ref'], $d['resident_id'], $d['hub_id'], $d['collector_id'], $d['material'], $d['unit'], $d['quantity'], $d['weight_kg'], $d['points'], $d['photo_url'] ?? null]);
     }
 }

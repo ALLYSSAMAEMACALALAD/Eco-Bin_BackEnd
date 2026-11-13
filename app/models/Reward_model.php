@@ -15,12 +15,12 @@ class Reward_model extends Model
         return eco_db_one('SELECT * FROM rewards WHERE id = ? AND is_active = 1', [$id]);
     }
 
-    /** Points earned from drop-offs minus points held by pending or approved redemptions (rejected ones are refunded). */
-    public function balance_for(int $residentId): int
+    /** Points earned from drop-offs minus points held by pending or approved redemptions (rejected ones are refunded). Returns half points when plastic bottles were logged. */
+    public function balance_for(int $residentId): float
     {
-        $earned = (int) eco_db_one('SELECT COALESCE(SUM(points),0) AS n FROM dropoff_logs WHERE resident_id = ?', [$residentId])['n'];
-        $spent  = (int) eco_db_one('SELECT COALESCE(SUM(points_cost),0) AS n FROM redemptions WHERE resident_id = ? AND status <> ?', [$residentId, 'rejected'])['n'];
-        return $earned - $spent;
+        $earned = (float) (eco_db_one('SELECT COALESCE(SUM(points),0) AS n FROM dropoff_logs WHERE resident_id = ?', [$residentId])['n'] ?? 0);
+        $spent  = (float) (eco_db_one('SELECT COALESCE(SUM(points_cost),0) AS n FROM redemptions WHERE resident_id = ? AND status <> ?', [$residentId, 'rejected'])['n'] ?? 0);
+        return round($earned - $spent, 2);
     }
 
     public function for_resident(int $userId): array
