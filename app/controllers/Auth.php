@@ -82,6 +82,244 @@ class Auth extends Controller
         $this->api->respond(['tokens' => $tokens, 'user' => eco_public_user($user)], $status);
     }
 
+    /* ---------- Continue with Facebook (OAuth 2.0 authorization-code flow) ---------- */
+
+    /** Sends the browser to Facebook's consent screen. */
+    public function facebook()
+    {
+        $this->api->require_method('GET');
+
+        if ($this->facebook_app_id() === '' || $this->facebook_app_secret() === '') {
+            $this->facebook_fail('Hindi pa naka-configure ang Facebook login. Idagdag ang FACEBOOK_APP_ID at FACEBOOK_APP_SECRET sa backend .env.');
+        }
+
+        $state = $this->facebook_sign_state([
+            'n' => bin2hex(random_bytes(16)),
+            't' => time(),
+            'f' => $this->facebook_frontend_origin(),
+        ]);
+
+        $query = http_build_query([
+            'client_id'     => $this->facebook_app_id(),
+            'redirect_uri'  => $this->facebook_redirect_uri(),
+            'response_type' => 'code',
+            'scope'         => 'email,public_profile',
+            'state'         => $state,
+        ]);
+
+        header('Location: https://www.facebook.com/' . $this->facebook_graph_version() . '/dialog/oauth?' . $query);
+        exit;
+    }
+
+    /** Facebook redirects here with a code; we trade it for a profile and log the user in. */
+    public function facebookCallback()
+    {
+        $this->api->require_method('GET');
+
+        $payload = $this->facebook_verify_state((string) ($_GET['state'] ?? ''));
+        if (!$payload) {
+            $this->facebook_fail('Expired o invalid ang Facebook login request. Subukan ulit.');
+        }
+
+        if (!empty($_GET['error'])) {
+            $this->facebook_fail('Kinansela ang Facebook login.');
+        }
+
+        $code = trim((string) ($_GET['code'] ?? ''));
+        if ($code === '') {
+            $this->facebook_fail('Walang authorization code mula sa Facebook.');
+        }
+
+        $token = $this->facebook_get_json('https://graph.facebook.com/' . $this->facebook_graph_version() . '/oauth/access_token?' . http_build_query([
+            'client_id'     => $this->facebook_app_id(),
+            'client_secret' => $this->facebook_app_secret(),
+            'redirect_uri'  => $this->facebook_redirect_uri(),
+            'code'          => $code,
+        ]));
+
+        if (empty($token['access_token'])) {
+            $this->facebook_fail('Hindi nakuha ang Facebook access token. Subukan ulit.');
+        }
+
+        $profile = $this->facebook_get_json('https://graph.facebook.com/' . $this->facebook_graph_version() . '/me?' . http_build_query([
+            'fields'       => 'id,name,email',
+            'access_token' => $token['access_token'],
+        ]));
+
+        $email = strtolower(trim((string) ($profile['email'] ?? '')));
+        $name  = trim((string) ($profile['name'] ?? ''));
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->facebook_fail('Kailangan i-allow ang email permission sa Facebook para makapag-login.');
+        }
+
+        $user = $this->User_model->find_by_email($email);
+        if (!$user) {
+            // Facebook users have no EcoBin password yet; they can set one via Forgot password.
+            $id = $this->User_model->create_resident([
+                'name'          => $name !== '' ? $name : strtok($email, '@'),
+                'email'         => $email,
+                'phone'         => null,
+                'barangay'      => 'Unassigned',
+                'password_hash' => password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+            ]);
+            $user = $this->User_model->find_by_id($id);
+            eco_audit($id, 'user_registered', "user:$id", 'via facebook');
+        }
+
+        eco_audit((int) $user['id'], 'login', null, 'via facebook');
+        $tokens = $this->api->issue_tokens(['id' => (int) $user['id'], 'role' => $user['role']]);
+
+        $frontend = rtrim((string) ($payload['f'] ?? ''), '/');
+        if ($frontend === '') $frontend = $this->facebook_frontend_origin();
+
+        header('Location: ' . $frontend . '/login#' . http_build_query([
+            'fb_access_token'  => $tokens['access_token'],
+            'fb_refresh_token' => $tokens['refresh_token'],
+        ]));
+        exit;
+    }
+
+    private function facebook_app_id(): string
+    {
+        return trim((string) config_item('facebook_app_id'));
+    }
+
+    private function facebook_app_secret(): string
+    {
+        return trim((string) config_item('facebook_app_secret'));
+    }
+
+    private function facebook_graph_version(): string
+    {
+        $version = trim((string) config_item('facebook_graph_version'));
+        return $version !== '' ? $version : 'v23.0';
+    }
+
+    private function facebook_is_https(): bool
+    {
+        return (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+            || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    }
+
+    private function facebook_redirect_uri(): string
+    {
+        $configured = trim((string) config_item('facebook_redirect_uri'));
+        if ($configured !== '') return $configured;
+
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
+        return ($this->facebook_is_https() ? 'https://' : 'http://') . $host . '/api/auth/facebook/callback';
+    }
+
+    /** Frontend origins allowed by CORS; entries without a scheme are treated as https. */
+    private function facebook_frontend_origins(): array
+    {
+        $origins = [];
+        foreach (explode(',', (string) getenv('CORS_ORIGIN')) as $origin) {
+            $origin = rtrim(trim($origin), '/');
+            if ($origin === '') continue;
+            if (!preg_match('~^https?://~i', $origin)) $origin = 'https://' . $origin;
+            $origins[] = $origin;
+        }
+        return array_values(array_unique($origins));
+    }
+
+    private function facebook_frontend_origin(): string
+    {
+        $configured = rtrim(trim((string) config_item('frontend_url')), '/');
+        if ($configured !== '') return $configured;
+
+        $origins = $this->facebook_frontend_origins();
+
+        // The browser sends the login page as the referrer, which tells us whether
+        // to return to localhost during development or the deployed frontend.
+        $referer = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+        if ($referer !== '') {
+            $parts = parse_url($referer);
+            if (!empty($parts['scheme']) && !empty($parts['host'])) {
+                $origin = strtolower($parts['scheme'] . '://' . $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : ''));
+                foreach ($origins as $allowed) {
+                    if (strtolower($allowed) === $origin) return $allowed;
+                }
+            }
+        }
+
+        // No usable referrer: pick an origin that fits the current environment.
+        $local = [];
+        $remote = [];
+        foreach ($origins as $origin) {
+            if (preg_match('~^https?://(localhost|127\.0\.0\.1)(:\d+)?$~i', $origin)) {
+                $local[] = $origin;
+            } else {
+                $remote[] = $origin;
+            }
+        }
+        $preferred = $this->facebook_is_https() ? $remote : $local;
+
+        return $preferred[0] ?? $origins[0] ?? 'http://localhost:5173';
+    }
+
+    private function facebook_state_secret(): string
+    {
+        $secret = trim((string) config_item('facebook_state_secret'));
+        if ($secret === '') $secret = (string) getenv('REFRESH_TOKEN_KEY');
+        if ($secret === '') $secret = (string) getenv('JWT_SECRET');
+        return $secret;
+    }
+
+    private function facebook_sign_state(array $data): string
+    {
+        $payload = rtrim(strtr(base64_encode(json_encode($data, JSON_UNESCAPED_SLASHES)), '+/', '-_'), '=');
+        return $payload . '.' . hash_hmac('sha256', $payload, $this->facebook_state_secret());
+    }
+
+    private function facebook_verify_state(string $state): ?array
+    {
+        $parts = explode('.', $state);
+        if (count($parts) !== 2) return null;
+
+        [$payload, $signature] = $parts;
+        $expected = hash_hmac('sha256', $payload, $this->facebook_state_secret());
+        if (!hash_equals($expected, $signature)) return null;
+
+        $json = base64_decode(strtr($payload, '-_', '+/'), true);
+        if ($json === false) return null;
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || empty($data['t']) || (time() - (int) $data['t']) > 600) return null;
+
+        return $data;
+    }
+
+    /** Returns an error to the login page instead of leaving the user on a blank API response. */
+    private function facebook_fail(string $message): void
+    {
+        header('Location: ' . $this->facebook_frontend_origin() . '/login#fb_error=' . rawurlencode($message));
+        exit;
+    }
+
+    private function facebook_get_json(string $url): array
+    {
+        if (!function_exists('curl_init')) return [];
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($body === false || $status < 200 || $status >= 300) return [];
+
+        $data = json_decode($body, true);
+        return is_array($data) ? $data : [];
+    }
+
     /** Sends a 6-digit reset code to the email, if the account exists. Always responds the same way. */
  public  function forgotPassword()
     {

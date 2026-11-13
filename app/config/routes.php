@@ -18,6 +18,10 @@ $router->post('/api/auth/refresh',  'Auth::refresh');
 $router->post('/api/auth/logout',   'Auth::logout');
 $router->get('/api/auth/me',        'Auth::me');
 
+// Continue with Facebook (OAuth redirect flow)
+$router->get('/api/auth/facebook',          'Auth::facebook');
+$router->get('/api/auth/facebook/callback', 'Auth::facebookCallback');
+
 // Collection schedules
 $router->get('/api/schedules',          'Schedules::index');
 $router->post('/api/schedules',         'Schedules::store');
