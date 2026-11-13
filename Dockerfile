@@ -14,6 +14,10 @@ RUN a2enmod rewrite
 # Allow .htaccess overrides
 RUN sed -i '/<Directory \/var\/www\/>/,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
  
+# Install PHP dependencies (vendor is gitignored, so build them during image build)
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
 # Copy app files
 COPY . /var/www/html/
  

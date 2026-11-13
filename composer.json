@@ -1,5 +1,6 @@
 {
     "require": {
-        "phpmailer/phpmailer": "^7.2"
+        "phpmailer/phpmailer": "^7.2",
+        "cloudinary/cloudinary_php": "^3.3"
     }
 }

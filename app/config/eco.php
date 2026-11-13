@@ -19,8 +19,11 @@ $config['dropoff_materials'] = [
 
 $config['upload_max_bytes'] = 5 * 1024 * 1024;
 
-// Cloudinary unsigned upload. If unset, photos are saved to public/uploads.
+// Cloudinary photo storage. Signed uploads through the SDK (run `composer install`).
+// If all three are set, photos go to Cloudinary; otherwise photos fall back to public/uploads.
 $config['cloudinary_cloud_name']    = getenv('CLOUDINARY_CLOUD_NAME') ?: '';
+$config['cloudinary_api_key']       = getenv('CLOUDINARY_API_KEY') ?: '';
+$config['cloudinary_api_secret']    = getenv('CLOUDINARY_API_SECRET') ?: '';
 $config['cloudinary_upload_preset'] = getenv('CLOUDINARY_UPLOAD_PRESET') ?: '';
 
 // SMS provider: 'semaphore' or '' (empty = reminders are only queued in the notifications table)

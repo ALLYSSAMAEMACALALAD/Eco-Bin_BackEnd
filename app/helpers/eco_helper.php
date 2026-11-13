@@ -65,8 +65,39 @@ function eco_store_photo(array $file): string
     }
 
     $cloud  = config_item('cloudinary_cloud_name');
+    $key    = config_item('cloudinary_api_key');
+    $secret = config_item('cloudinary_api_secret');
     $preset = config_item('cloudinary_upload_preset');
-    if ($cloud && $preset) {
+
+    if ($cloud && $key && $secret) {
+        // Signed upload through the official Cloudinary PHP SDK (composer install).
+        $autoload = ROOT_DIR . 'vendor/autoload.php';
+        if (is_file($autoload)) require_once $autoload;
+        if (!class_exists('\\Cloudinary\\Cloudinary')) {
+            error_log('Cloudinary SDK not installed. Run composer install inside backend/.');
+            $api->respond_error('Photo upload to storage failed. Please try again.', 502);
+        }
+        try {
+            $cloudinary = new \Cloudinary\Cloudinary([
+                'cloud' => ['cloud_name' => $cloud, 'api_key' => $key, 'api_secret' => $secret],
+            ]);
+            $result = $cloudinary->uploadApi()->upload($file['tmp_name'], [
+                'folder'          => 'ecobin',
+                'resource_type'   => 'image',
+                'unique_filename' => true,
+                'overwrite'       => false,
+            ]);
+            $url = $result['secure_url'] ?? null;
+            if (!$url) {
+                throw new RuntimeException('Cloudinary response did not include a secure_url.');
+            }
+            return $url;
+        } catch (Throwable $e) {
+            error_log('Cloudinary upload failed: ' . $e->getMessage());
+            $api->respond_error('Photo upload to storage failed. Please try again.', 502);
+        }
+    }
+    if ($cloud && $preset) { // legacy unsigned preset fallback
         $ch = curl_init("https://api.cloudinary.com/v1_1/$cloud/image/upload");
         curl_setopt_array($ch, [
             CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true,
