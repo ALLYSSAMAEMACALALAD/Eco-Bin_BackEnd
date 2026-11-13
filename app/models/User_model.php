@@ -60,6 +60,9 @@ class User_model extends Model
 
     public function residents_in_zone(string $zone): array
     {
-        return eco_db_all('SELECT id, phone FROM users WHERE role = ? AND barangay = ?', ['resident', $zone]);
+        return eco_db_all(
+            'SELECT id, name, email, phone FROM users WHERE role = ? AND barangay = ? AND is_active = 1 ORDER BY name',
+            ['resident', $zone]
+        );
     }
 }
