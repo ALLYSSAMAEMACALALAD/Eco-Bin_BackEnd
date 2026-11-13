@@ -356,6 +356,32 @@ class Auth extends Controller
         $this->api->respond($generic);
     }
 
+    /** Checks the code without changing the password. Lets the UI reveal the password step only after a valid code. */
+    public function verifyResetCode()
+    {
+        $this->api->require_method('POST');
+        $in = $this->api->body();
+        $email = strtolower(trim($in['email'] ?? ''));
+        $code  = trim((string) ($in['code'] ?? ''));
+
+        $row = eco_db_one(
+            'SELECT * FROM password_resets
+             WHERE email = ? AND used = 0 AND expires_at > NOW()
+             ORDER BY id DESC LIMIT 1',
+            [$email]
+        );
+        if (!$row || (int) $row['attempts'] >= 5) {
+            $this->api->respond_error('Invalid o expired na ang code. Humiling ng bago.', 422);
+        }
+
+        if (!password_verify($code, $row['code_hash'])) {
+            eco_db_exec('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', [(int) $row['id']]);
+            $this->api->respond_error('Mali ang code.', 422);
+        }
+
+        $this->api->respond(['ok' => true]);
+    }
+
     /** Verifies the code and sets the new password. */
     public function resetPassword()
     {

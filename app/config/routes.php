@@ -70,4 +70,5 @@ $router->get('/api/admin/audit-logs',       'Admin::auditLogs');
 
 // forgot password
 $router->post('/api/auth/forgot-password', 'Auth::forgotPassword');
+$router->post('/api/auth/verify-reset-code', 'Auth::verifyResetCode');
 $router->post('/api/auth/reset-password',  'Auth::resetPassword');
