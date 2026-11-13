@@ -115,3 +115,97 @@ function eco_send_sms(?string $phone, string $message): bool
     }
     return false; // Twilio is not wired up yet
 }
+
+/**
+ * Sends an HTML email. Uses Brevo's HTTPS API when BREVO_API_KEY is set,
+ * otherwise Gmail SMTP through PHPMailer, then PHP mail() as a last resort.
+ * Returns true when a provider accepted the message.
+ */
+function eco_send_mail(?string $to, string $toName, string $subject, string $html): bool
+{
+    $to = trim((string) $to);
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+
+    $senderEmail = trim((string) config_item('brevo_sender_email'));
+    $senderName  = trim((string) config_item('brevo_sender_name')) ?: 'Eco-Bin';
+    $gmailUser   = trim((string) config_item('gmail_user'));
+    $gmailPass   = (string) config_item('gmail_app_password');
+    $brevoKey    = trim((string) config_item('brevo_api_key'));
+    $brevoUrl    = trim((string) config_item('brevo_api_url')) ?: 'https://api.brevo.com/v3/smtp/email';
+    if ($senderEmail === '') $senderEmail = $gmailUser;
+
+    // 1) Brevo HTTPS API. It works even when the host blocks outbound SMTP ports.
+    if ($brevoKey !== '' && $senderEmail !== '') {
+        $payload = [
+            'sender'      => ['name' => $senderName, 'email' => $senderEmail],
+            'to'          => [['email' => $to, 'name' => $toName !== '' ? $toName : $to]],
+            'subject'     => $subject,
+            'htmlContent' => $html,
+        ];
+
+        $ch = curl_init($brevoUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_HTTPHEADER     => [
+                'accept: application/json',
+                'content-type: application/json',
+                'api-key: ' . $brevoKey,
+            ],
+            CURLOPT_POSTFIELDS     => json_encode($payload),
+        ]);
+        $body   = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $error  = curl_error($ch);
+        curl_close($ch);
+
+        if ($body !== false && $status >= 200 && $status < 300) return true;
+
+        error_log('EcoBin mail (Brevo) failed: HTTP ' . $status . ' ' . ($error ?: substr((string) $body, 0, 500)));
+    }
+
+    // 2) Gmail SMTP (requires a Google App Password, not the normal account password).
+    if ($gmailUser !== '' && $gmailPass !== '') {
+        $root = defined('ROOT_DIR') ? ROOT_DIR : dirname(APP_DIR) . DIRECTORY_SEPARATOR;
+        $autoload = $root . 'vendor/autoload.php';
+        if (is_file($autoload)) require_once $autoload;
+
+        if (class_exists('\\PHPMailer\\PHPMailer\\PHPMailer')) {
+            try {
+                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host       = 'smtp.gmail.com';
+                $mail->SMTPAuth   = true;
+                $mail->Username   = $gmailUser;
+                $mail->Password   = $gmailPass;
+                $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                $mail->Port       = 587;
+                $mail->CharSet    = 'UTF-8';
+                $mail->setFrom($gmailUser, $senderName);
+                $mail->addAddress($to, $toName !== '' ? $toName : $to);
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body    = $html;
+                $mail->AltBody = trim(strip_tags(str_replace(['<br>', '<br/>', '</p>'], "\n", $html)));
+                $mail->send();
+                return true;
+            } catch (\Throwable $e) {
+                error_log('EcoBin mail (Gmail SMTP) failed: ' . $e->getMessage());
+            }
+        } else {
+            error_log('EcoBin mail: PHPMailer is not installed. Run composer install inside backend/.');
+        }
+    }
+
+    // 3) PHP mail() fallback for hosts that provide a local sendmail.
+    if ($senderEmail === '') return false;
+    $fromName = str_replace(['"', "\r", "\n"], '', $senderName);
+    $headers = [
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=UTF-8',
+        'From: ' . $fromName . ' <' . $senderEmail . '>',
+    ];
+
+    return @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html, implode("\r\n", $headers));
+}

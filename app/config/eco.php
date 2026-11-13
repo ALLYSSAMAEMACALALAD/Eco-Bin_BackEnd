@@ -26,3 +26,11 @@ $config['facebook_graph_version'] = getenv('FACEBOOK_GRAPH_VERSION') ?: 'v23.0';
 $config['facebook_state_secret']  = getenv('FACEBOOK_STATE_SECRET') ?: '';
 // Where the user lands after Facebook sends them back. Empty = use the first CORS origin.
 $config['frontend_url']           = getenv('FRONTEND_URL') ?: '';
+
+// Email / password-reset codes. Brevo is tried first, then Gmail SMTP.
+$config['brevo_api_key']      = getenv('BREVO_API_KEY') ?: '';
+$config['brevo_api_url']      = getenv('BREVO_API_URL') ?: 'https://api.brevo.com/v3/smtp/email';
+$config['brevo_sender_email'] = getenv('BREVO_SENDER_EMAIL') ?: '';
+$config['brevo_sender_name']  = getenv('BREVO_SENDER_NAME') ?: 'Eco-Bin';
+$config['gmail_user']         = getenv('GMAIL_USER') ?: '';
+$config['gmail_app_password'] = getenv('GMAIL_APP_PASSWORD') ?: '';
