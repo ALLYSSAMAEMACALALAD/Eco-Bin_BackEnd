@@ -329,8 +329,15 @@ class Auth extends Controller
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $this->api->respond($generic);
 
-        $user = eco_db_one('SELECT id, name FROM users WHERE email = ? LIMIT 1', [$email]);
+        $user = eco_db_one('SELECT id, name, role FROM users WHERE email = ? LIMIT 1', [$email]);
         if (!$user) $this->api->respond($generic);
+
+        // Admin accounts: hindi pwedeng i-reset ang password sa paraang ito.
+        // Same generic response pa rin para hindi malaman ng nag-request kung admin ang email.
+        if (($user['role'] ?? '') === 'admin') {
+            eco_audit(null, 'admin_password_reset_blocked', 'user:' . $user['id'], 'forgot-password request');
+            $this->api->respond($generic);
+        }
 
         // Cooldown: hindi pwedeng humiling ulit sa loob ng 60 segundo
         $recent = eco_db_one(
@@ -383,10 +390,23 @@ class Auth extends Controller
             $this->api->respond_error('Mali ang code.', 422);
         }
 
-        eco_db_exec(
-            'UPDATE users SET password_hash = ? WHERE email = ?',
-            [password_hash($password, PASSWORD_BCRYPT), $email]
+        // I-block din dito kahit may lumang code na naipadala bago pa ang guard sa forgotPassword.
+        $user = eco_db_one('SELECT id, role FROM users WHERE email = ? LIMIT 1', [$email]);
+        if (!$user) $this->api->respond_error('Invalid o expired na ang code. Humiling ng bago.', 422);
+        if (($user['role'] ?? '') === 'admin') {
+            eco_db_exec('UPDATE password_resets SET used = 1 WHERE email = ?', [$email]);
+            eco_audit(null, 'admin_password_reset_blocked', 'user:' . $user['id'], 'reset-password attempt');
+            $this->api->respond_error('Hindi pwedeng baguhin ang password ng admin account sa paraang ito. Makipag-ugnayan sa system owner.', 403);
+        }
+
+        // Extra guard: kahit may makalusot, hindi talaga mababago ang admin password.
+        $changed = eco_db_exec(
+            'UPDATE users SET password_hash = ? WHERE email = ? AND role <> ?',
+            [password_hash($password, PASSWORD_BCRYPT), $email, 'admin']
         );
+        if ($changed < 1) {
+            $this->api->respond_error('Hindi pwedeng baguhin ang password ng admin account sa paraang ito. Makipag-ugnayan sa system owner.', 403);
+        }
         eco_db_exec('UPDATE password_resets SET used = 1 WHERE email = ?', [$email]);
 
         $this->api->respond(['ok' => true]);
