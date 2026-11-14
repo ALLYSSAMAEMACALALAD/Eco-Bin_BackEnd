@@ -69,6 +69,15 @@ class Schedules extends Controller
         if ($when === '') $when = 'tomorrow';
         if (strlen($note) > 1000) $this->api->respond_error('The additional note is too long.', 422);
 
+        // No schedule for this barangay → do not send anything.
+        $zoneSchedule = $this->Schedule_model->for_zone($zone);
+        if (empty($zoneSchedule)) {
+            $this->api->respond_error(
+                'No collection schedule is published for "' . $zone . '". Reminders cannot be sent to a barangay without a scheduled pickup.',
+                422
+            );
+        }
+
         $residents = $this->User_model->residents_in_zone($zone);
         $message = "Eco-Bin reminder: garbage collection in $zone is scheduled for $when. Please have your waste ready.";
         if ($note !== '') $message .= "\n\nNote: $note";
