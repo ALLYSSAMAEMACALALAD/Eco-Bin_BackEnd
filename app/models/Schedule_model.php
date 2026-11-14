@@ -18,8 +18,9 @@ class Schedule_model extends Model
 
     public function for_resident(string $zone): array
     {
-        $schedules = $zone !== '' ? $this->for_zone($zone) : [];
-        return $schedules ?: $this->all();
+        // Residents must only see the schedule published for their own barangay/zone —
+        // never fall back to everyone's schedules, even if none is published yet.
+        return $zone !== '' ? $this->for_zone($zone) : [];
     }
 
     public function create(array $s, int $by): int
