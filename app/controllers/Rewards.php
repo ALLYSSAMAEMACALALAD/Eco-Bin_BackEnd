@@ -170,9 +170,20 @@
                             $html = '<p>Hi ' . $winner . ',</p>'
                                 . '<p>Good news! Your redemption request for <strong>' . $reward . '</strong> (' . (int) $entry['points_cost'] . ' points) has been <strong>APPROVED</strong>.</p>'
                                 . '<p>Certificate code: <strong style="font-size:18px;letter-spacing:2px">' . htmlspecialchars($entry['certificate_code']) . '</strong></p>'
-                                . '<p>Please present this code at the barangay office or at the drop-off hub to claim your reward.</p>'
+                                . '<p>Attached is your reward voucher. Present it at the barangay office or at the drop-off hub to claim your reward.</p>'
                                 . '<p>Thank you for being an Eco-Bin champion! 🌱</p>';
-                            eco_send_mail($entry['email'], $entry['name'], 'EcoBin: Your reward is approved!', $html);
+                            $voucher = eco_render_voucher_pdf([
+                                'resident_name'   => $entry['name'],
+                                'eco_id'          => $entry['eco_id'] ?? '',
+                                'reward'          => $entry['reward_name'],
+                                'points_redeemed' => (int) $entry['points_cost'],
+                                'code'            => $entry['certificate_code'],
+                                'issued_at'       => date('Y-m-d'),
+                            ]);
+                            $attachments = $voucher !== ''
+                                ? [['name' => 'EcoBin-Voucher-' . preg_replace('/[^A-Za-z0-9_-]/', '_', $entry['certificate_code']) . '.pdf', 'content' => $voucher, 'mime' => 'application/pdf']]
+                                : [];
+                            eco_send_mail($entry['email'], $entry['name'], 'EcoBin: Your reward is approved!', $html, $attachments);
                         } else {
                             $html = '<p>Hi ' . $winner . ',</p>'
                             . '<p>Your redemption request for <strong>' . $reward . '</strong> was <strong>not approved</strong>. Your ' . (int) $entry['points_cost'] . ' points have been returned to your balance.</p>'
