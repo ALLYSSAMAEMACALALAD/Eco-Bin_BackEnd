@@ -469,7 +469,7 @@ class Auth extends Controller
 
     /**
      * Recovery link sent after 3 consecutive failed login attempts.
-     * The token is stored like any other password_resets code (bcrypt), single-use, 15 minutes.
+     * The token is stored like any other password_resets code (bcrypt), single-use, 10 minutes.
      */
     public function resetViaLink()
     {
@@ -535,12 +535,12 @@ class Auth extends Controller
     {
         $email = strtolower((string) $user['email']);
 
-        // One active token per account at a time.
+        // One active token per account at a time. It expires after 10 minutes.
         eco_db_exec('UPDATE password_resets SET used = 1 WHERE email = ? AND used = 0', [$email]);
 
         $token = bin2hex(random_bytes(32));
         eco_db_exec(
-            'INSERT INTO password_resets (email, code_hash, expires_at) VALUES (?, ?, NOW() + INTERVAL 15 MINUTE)',
+            'INSERT INTO password_resets (email, code_hash, expires_at) VALUES (?, ?, NOW() + INTERVAL 10 MINUTE)',
             [$email, password_hash($token, PASSWORD_BCRYPT)]
         );
 
@@ -549,7 +549,7 @@ class Auth extends Controller
 
         $name = (string) ($user['name'] ?? $email);
         $html = '<p>Hi ' . htmlspecialchars($name) . ',</p>'
-              . '<p>Nakatanggap kami ng tatlo (3) na maling password attempts sa account mo. Kung ikaw ito, i-reset ang password gamit ang link na ito (may bisa sa loob ng 15 minuto):</p>'
+              . '<p>Nakatanggap kami ng tatlo (3) na maling password attempts sa account mo. Kung ikaw ito, i-reset ang password gamit ang link na ito (mag-e-expire ito sa loob ng 10 minuto):</p>'
               . '<p style="margin:24px 0"><a href="' . htmlspecialchars($link) . '" style="display:inline-block;background:#174d37;color:#c8f07e;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold">I-reset ang password</a></p>'
               . '<p style="word-break:break-all;font-size:12px;color:#666">O kopyahin ang link na ito sa iyong browser:<br>' . htmlspecialchars($link) . '</p>'
               . '<p>Kung hindi ikaw ang gumawa ng mga pagtatangkang ito, balewalain lang ang email na ito.</p>';
