@@ -111,7 +111,7 @@ class Auth extends Controller
         $this->api->require_method('GET');
 
         if ($this->facebook_app_id() === '' || $this->facebook_app_secret() === '') {
-            $this->facebook_fail('Hindi pa naka-configure ang Facebook login. Idagdag ang FACEBOOK_APP_ID at FACEBOOK_APP_SECRET sa backend .env.');
+            $this->facebook_fail('Facebook login is not configured yet. Add FACEBOOK_APP_ID and FACEBOOK_APP_SECRET to the backend .env.');
         }
 
         $state = $this->facebook_sign_state([
@@ -139,16 +139,16 @@ class Auth extends Controller
 
         $payload = $this->facebook_verify_state((string) ($_GET['state'] ?? ''));
         if (!$payload) {
-            $this->facebook_fail('Expired o invalid ang Facebook login request. Subukan ulit.');
+            $this->facebook_fail('Facebook login request has expired or is invalid. Please try again.');
         }
 
         if (!empty($_GET['error'])) {
-            $this->facebook_fail('Kinansela ang Facebook login.');
+            $this->facebook_fail('Facebook login was cancelled.');
         }
 
         $code = trim((string) ($_GET['code'] ?? ''));
         if ($code === '') {
-            $this->facebook_fail('Walang authorization code mula sa Facebook.');
+            $this->facebook_fail('No authorization code from Facebook.');
         }
 
         $token = $this->facebook_get_json('https://graph.facebook.com/' . $this->facebook_graph_version() . '/oauth/access_token?' . http_build_query([
@@ -159,7 +159,7 @@ class Auth extends Controller
         ]));
 
         if (empty($token['access_token'])) {
-            $this->facebook_fail('Hindi nakuha ang Facebook access token. Subukan ulit.');
+            $this->facebook_fail('Could not get Facebook access token. Please try again.');
         }
 
         $profile = $this->facebook_get_json('https://graph.facebook.com/' . $this->facebook_graph_version() . '/me?' . http_build_query([
@@ -171,7 +171,7 @@ class Auth extends Controller
         $name  = trim((string) ($profile['name'] ?? ''));
 
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->facebook_fail('Kailangan i-allow ang email permission sa Facebook para makapag-login.');
+            $this->facebook_fail('Email permission is required to sign in with Facebook.');
         }
 
         $user = $this->User_model->find_by_email($email);
@@ -345,14 +345,14 @@ class Auth extends Controller
     {
         $this->api->require_method('POST');
         $email = strtolower(trim($this->api->body()['email'] ?? ''));
-        $generic = ['ok' => true, 'message' => 'Kung may account na naka-rehistro sa email na ito, may ipinadala kaming code.'];
+        $generic = ['ok' => true, 'message' => 'If an account is registered with this email, we have sent a code.'];
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $this->api->respond($generic);
 
         $user = eco_db_one('SELECT id, name FROM users WHERE email = ? LIMIT 1', [$email]);
         if (!$user) $this->api->respond($generic);
 
-        // Cooldown: hindi pwedeng humiling ulit sa loob ng 60 segundo
+        // Cooldown: no repeat requests within 60 seconds
         $recent = eco_db_one(
             'SELECT id FROM password_resets WHERE email = ? AND created_at > NOW() - INTERVAL 60 SECOND LIMIT 1',
             [$email]
@@ -369,11 +369,11 @@ class Auth extends Controller
         );
 
         $html = '<p>Hi ' . htmlspecialchars($user['name']) . ',</p>'
-              . '<p>Ang code para i-reset ang password mo ay:</p>'
+              . '<p>Here is your password reset code:</p>'
               . '<p style="font-size:28px;font-weight:bold;letter-spacing:6px">' . $code . '</p>'
-              . '<p>Mag-e-expire ito sa loob ng 10 minuto. Kung hindi ikaw ang humiling nito, balewalain lang ang email.</p>';
+              . '<p>This code expires in 10 minutes. If you did not request this, you can safely ignore this email.</p>';
 
-        eco_send_mail($email, $user['name'], 'EcoBin: Code para i-reset ang password', $html);
+        eco_send_mail($email, $user['name'], 'EcoBin: Your password reset code', $html);
         $this->api->respond($generic);
     }
 
@@ -392,12 +392,12 @@ class Auth extends Controller
             [$email]
         );
         if (!$row || (int) $row['attempts'] >= 5) {
-            $this->api->respond_error('Invalid o expired na ang code. Humiling ng bago.', 422);
+            $this->api->respond_error('Invalid or expired code. Please request a new one.', 422);
         }
 
         if (!password_verify($code, $row['code_hash'])) {
             eco_db_exec('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', [(int) $row['id']]);
-            $this->api->respond_error('Mali ang code.', 422);
+            $this->api->respond_error('Incorrect code.', 422);
         }
 
         $this->api->respond(['ok' => true]);
@@ -421,12 +421,12 @@ class Auth extends Controller
             [$email]
         );
         if (!$row || (int) $row['attempts'] >= 5) {
-            $this->api->respond_error('Invalid o expired na ang code. Humiling ng bago.', 422);
+            $this->api->respond_error('Invalid or expired code. Please request a new one.', 422);
         }
 
         if (!password_verify($code, $row['code_hash'])) {
             eco_db_exec('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', [(int) $row['id']]);
-            $this->api->respond_error('Mali ang code.', 422);
+            $this->api->respond_error('Incorrect code.', 422);
         }
 
         eco_db_exec(
@@ -490,11 +490,11 @@ class Auth extends Controller
             [$email]
         );
         if (!$row || (int) $row['attempts'] >= 5) {
-            $this->api->respond_error('Invalid o expired na ang link. Humiling ng bagong recovery link mula sa Log In.', 422);
+            $this->api->respond_error('Invalid or expired link. Request a new recovery link from the Sign In page.', 422);
         }
         if (!password_verify($token, $row['code_hash'])) {
             eco_db_exec('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', [(int) $row['id']]);
-            $this->api->respond_error('Mali ang link.', 422);
+            $this->api->respond_error('Invalid link.', 422);
         }
 
         eco_db_exec('UPDATE users SET password_hash = ? WHERE email = ?', [password_hash($password, PASSWORD_BCRYPT), $email]);
@@ -549,11 +549,11 @@ class Auth extends Controller
 
         $name = (string) ($user['name'] ?? $email);
         $html = '<p>Hi ' . htmlspecialchars($name) . ',</p>'
-              . '<p>Nakatanggap kami ng tatlo (3) na maling password attempts sa account mo. Kung ikaw ito, i-reset ang password gamit ang link na ito (mag-e-expire ito sa loob ng 10 minuto):</p>'
-              . '<p style="margin:24px 0"><a href="' . htmlspecialchars($link) . '" style="display:inline-block;background:#174d37;color:#c8f07e;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold">I-reset ang password</a></p>'
-              . '<p style="word-break:break-all;font-size:12px;color:#666">O kopyahin ang link na ito sa iyong browser:<br>' . htmlspecialchars($link) . '</p>'
-              . '<p>Kung hindi ikaw ang gumawa ng mga pagtatangkang ito, balewalain lang ang email na ito.</p>';
+              . '<p>We recorded three (3) failed password attempts on your account. If this was you, reset your password with the link below. This link expires in 10 minutes:</p>'
+              . '<p style="margin:24px 0"><a href="' . htmlspecialchars($link) . '" style="display:inline-block;background:#174d37;color:#c8f07e;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold">Reset my password</a></p>'
+              . '<p style="word-break:break-all;font-size:12px;color:#666">Or copy this link into your browser:<br>' . htmlspecialchars($link) . '</p>'
+              . '<p>If you did not make these attempts, you can safely ignore this email.</p>';
 
-        eco_send_mail($email, $name, 'EcoBin: I-reset ang iyong password', $html);
+        eco_send_mail($email, $name, 'EcoBin: Reset your password', $html);
     }
 }

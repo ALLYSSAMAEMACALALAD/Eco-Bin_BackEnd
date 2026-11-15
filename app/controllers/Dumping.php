@@ -71,6 +71,44 @@ class Dumping extends Controller
 
         $this->Dumping_model->set_status((int) $r['id'], $status, (int) $user['id']);
         eco_audit((int) $user['id'], 'dumping_status_changed', "report:{$r['id']}", $status);
+
+        // Notify the resident who reported it. Best-effort: a mail failure must not undo the status change.
+        try {
+            $entry = eco_db_one(
+                'SELECT u.name, u.email, d.ticket_no, d.location
+                 FROM dumping_reports d JOIN users u ON u.id = d.resident_id WHERE d.id = ?',
+                [(int) $r['id']]
+            );
+            if ($entry) {
+                $labels = [
+                    'open' => 'Open — awaiting action',
+                    'investigating' => 'Investigating — field work started',
+                    'resolved' => 'Resolved — completed',
+                    'rejected' => 'Rejected — not processed',
+                ];
+                $statusLabel = $labels[$status] ?? $status;
+                $ticket = htmlspecialchars($entry['ticket_no']);
+                $local = htmlspecialchars($entry['location']);
+                $html = '<p>Hi ' . htmlspecialchars($entry['name']) . ',</p>'
+                      . '<p>There is an update on your illegal dumping report:</p>'
+                      . '<ul>'
+                      . '<li><strong>Ticket:</strong> ' . $ticket . '</li>'
+                      . '<li><strong>Location:</strong> ' . $local . '</li>'
+                      . '<li><strong>Status:</strong> ' . htmlspecialchars($statusLabel) . '</li>'
+                      . '</ul>';
+                if ($status === 'resolved') {
+                    $html .= '<p>Thank you for being a responsible citizen! 🌱</p>';
+                } elseif ($status === 'rejected') {
+                    $html .= '<p>If you have questions, please contact the barangay office.</p>';
+                } else {
+                    $html .= '<p>We will keep following up on your report. Thank you for reporting it.</p>';
+                }
+                eco_send_mail($entry['email'], $entry['name'], 'EcoBin: Update on your report — ' . $ticket, $html);
+            }
+        } catch (\Throwable $e) {
+            error_log('Dumping report email failed: ' . $e->getMessage());
+        }
+
         $this->api->respond(['ok' => true]);
     }
 }

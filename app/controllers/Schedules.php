@@ -100,11 +100,11 @@ class Schedules extends Controller
                 $this->Schedule_model->queue_notification((int) $r['id'], 'email', $message);
 
                 $html = '<p>Hi ' . htmlspecialchars($name) . ',</p>'
-                      . '<p>Ipinaaalala namin na ang garbage collection sa <strong>' . htmlspecialchars($zone)
-                      . '</strong> ay naka-schedule <strong>' . htmlspecialchars($when) . '</strong>.</p>'
-                      . '<p>Pakihanda ang inyong basura bago ang collection time.</p>'
+                      . '<p>This is a reminder that garbage collection in <strong>' . htmlspecialchars($zone)
+                      . '</strong> is scheduled <strong>' . htmlspecialchars($when) . '</strong>.</p>'
+                      . '<p>Please have your waste ready before collection time.</p>'
                       . ($note !== '' ? '<p><strong>Note:</strong> ' . nl2br(htmlspecialchars($note)) . '</p>' : '')
-                      . '<p>Salamat,<br>Eco-Bin</p>';
+                      . '<p>Thank you,<br>Eco-Bin</p>';
 
                 if (eco_send_mail($email, $name, 'EcoBin: Garbage collection in ' . $zone . ' is ' . $when, $html)) {
                     $sent++;

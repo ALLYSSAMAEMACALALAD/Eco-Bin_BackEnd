@@ -151,6 +151,39 @@
                 }
 
                 eco_audit((int) $user['id'], "redemption_$decision", "redemption:{$r['id']}");
+
+                // Notify the resident by email once a redemption is decided. Best-effort: a mail
+                // failure must never undo or block the decision.
+                try {
+                    $entry = eco_db_one(
+                        'SELECT u.name, u.email, u.eco_id, w.name AS reward_name, r.points_cost, r.certificate_code
+                         FROM redemptions r
+                         JOIN rewards w ON w.id = r.reward_id
+                         JOIN users u ON u.id = r.resident_id
+                         WHERE r.id = ?',
+                        [(int) $r['id']]
+                    );
+                    if ($entry) {
+                        $winner = htmlspecialchars($entry['name']);
+                        $reward = htmlspecialchars($entry['reward_name']);
+                        if ($decision === 'approved') {
+                            $html = '<p>Hi ' . $winner . ',</p>'
+                                . '<p>Good news! Your redemption request for <strong>' . $reward . '</strong> (' . (int) $entry['points_cost'] . ' points) has been <strong>APPROVED</strong>.</p>'
+                                . '<p>Certificate code: <strong style="font-size:18px;letter-spacing:2px">' . htmlspecialchars($entry['certificate_code']) . '</strong></p>'
+                                . '<p>Please present this code at the barangay office or at the drop-off hub to claim your reward.</p>'
+                                . '<p>Thank you for being an Eco-Bin champion! 🌱</p>';
+                            eco_send_mail($entry['email'], $entry['name'], 'EcoBin: Your reward is approved!', $html);
+                        } else {
+                            $html = '<p>Hi ' . $winner . ',</p>'
+                            . '<p>Your redemption request for <strong>' . $reward . '</strong> was <strong>not approved</strong>. Your ' . (int) $entry['points_cost'] . ' points have been returned to your balance.</p>'
+                            . '<p>If you have any questions, please contact the barangay office.</p>';
+                            eco_send_mail($entry['email'], $entry['name'], 'EcoBin: Update on your redemption', $html);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    error_log('Redemption email failed: ' . $e->getMessage());
+                }
+
                 $this->api->respond(['ok' => true]);
             }
 
