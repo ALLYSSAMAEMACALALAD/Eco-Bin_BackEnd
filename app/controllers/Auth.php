@@ -50,11 +50,18 @@ class Auth extends Controller
         if (!$valid) {
             if ($emailKey !== '') {
                 // Per-account counter: after 3 consecutive wrong passwords we email a
-                // one-time recovery link to the registered address.
+                // one-time recovery link to the registered address. Throttled to
+                // one email per 10 minutes so failed logins cannot mail-bomb the account.
                 $attempts = $this->record_failed_attempt($emailKey);
-                if ($user && $attempts === 3) {
-                    $this->send_recovery_link($user);
-                    eco_audit((int) $user['id'], 'recovery_link_sent', "user:{$user['id']}", 'after 3 failed logins');
+                if ($user && $attempts >= 3) {
+                    $recent = eco_db_one(
+                        'SELECT id FROM password_resets WHERE email = ? AND created_at > NOW() - INTERVAL 10 MINUTE LIMIT 1',
+                        [$emailKey]
+                    );
+                    if (!$recent) {
+                        $this->send_recovery_link($user);
+                        eco_audit((int) $user['id'], 'recovery_link_sent', "user:{$user['id']}", 'after repeated failed logins');
+                    }
                 }
             }
             $this->api->respond_error('Invalid email or password. After 3 failed attempts we send a recovery link to the account email.', 401);
