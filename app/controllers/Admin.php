@@ -34,8 +34,11 @@ class Admin extends Controller
         $password = (string) ($in['password'] ?? '');
 
         if (!in_array($role, ['collector', 'admin'], true)) $this->api->respond_error('Role must be collector or admin.', 422);
-        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
-            $this->api->respond_error('Name, a valid email and a password of at least 8 characters are required.', 422);
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $password === '') {
+            $this->api->respond_error('Name, a valid email and a password are required.', 422);
+        }
+        if ($err = eco_password_policy_error($password)) {
+            $this->api->respond_error($err, 422);
         }
         if ($this->User_model->find_by_email($email)) $this->api->respond_error('An account with this email already exists.', 409);
 

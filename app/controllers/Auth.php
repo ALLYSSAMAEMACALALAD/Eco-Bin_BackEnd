@@ -24,7 +24,7 @@ class Auth extends Controller
         if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->api->respond_error('Name and a valid email are required.', 422);
         }
-        if (strlen($password) < 8) $this->api->respond_error('Password must be at least 8 characters.', 422);
+        if ($err = eco_password_policy_error($password)) $this->api->respond_error($err, 422);
         if ($barangay === '') $this->api->respond_error('Barangay is required.', 422);
         if ($this->User_model->find_by_email($email)) $this->api->respond_error('An account with this email already exists.', 409);
 
@@ -43,10 +43,24 @@ class Auth extends Controller
         $this->api->rate_limit('login:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 10, 900);
 
         $in = $this->api->body();
-        $user = $this->User_model->find_by_email(strtolower(trim($in['email'] ?? '')));
-        if (!$user || !password_verify((string) ($in['password'] ?? ''), $user['password'])) {
-            $this->api->respond_error('Invalid email or password.', 401);
+        $emailKey = strtolower(trim($in['email'] ?? ''));
+        $user = $emailKey !== '' ? $this->User_model->find_by_email($emailKey) : null;
+        $valid = $user && password_verify((string) ($in['password'] ?? ''), $user['password']);
+
+        if (!$valid) {
+            if ($emailKey !== '') {
+                // Per-account counter: after 3 consecutive wrong passwords we email a
+                // one-time recovery link to the registered address.
+                $attempts = $this->record_failed_attempt($emailKey);
+                if ($user && $attempts === 3) {
+                    $this->send_recovery_link($user);
+                    eco_audit((int) $user['id'], 'recovery_link_sent', "user:{$user['id']}", 'after 3 failed logins');
+                }
+            }
+            $this->api->respond_error('Invalid email or password. After 3 failed attempts we send a recovery link to the account email.', 401);
         }
+
+        $this->clear_login_attempts($emailKey);
         eco_audit((int) $user['id'], 'login');
         $this->respond_session($user);
     }
@@ -391,7 +405,7 @@ class Auth extends Controller
         $code     = trim((string) ($in['code'] ?? ''));
         $password = (string) ($in['password'] ?? '');
 
-        if (strlen($password) < 8) $this->api->respond_error('Dapat at least 8 characters ang password.', 422);
+        if ($err = eco_password_policy_error($password)) $this->api->respond_error($err, 422);
 
         $row = eco_db_one(
             'SELECT * FROM password_resets
@@ -413,7 +427,105 @@ class Auth extends Controller
             [password_hash($password, PASSWORD_BCRYPT), $email]
         );
         eco_db_exec('UPDATE password_resets SET used = 1 WHERE email = ?', [$email]);
+        $this->clear_login_attempts($email);
 
         $this->api->respond(['ok' => true]);
+    }
+
+    /** Counts one failed attempt per account. Returns the new count, or -1 if the table is missing/unreachable. */
+    private function record_failed_attempt(string $email): int
+    {
+        try {
+            eco_db_exec(
+                'INSERT INTO login_attempts (email, attempts, first_failed_at, last_failed_at) VALUES (?, 1, NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_failed_at = NOW()',
+                [$email]
+            );
+            $row = eco_db_one('SELECT attempts FROM login_attempts WHERE email = ?', [$email]);
+            return (int) ($row['attempts'] ?? 0);
+        } catch (\Throwable $e) {
+            error_log('login_attempts table missing? Run migration 012. ' . $e->getMessage());
+            return -1;
+        }
+    }
+
+    /** Wipes the per-account failure counter after a successful sign-in or password reset. */
+    private function clear_login_attempts(string $email): void
+    {
+        if ($email === '') return;
+        try {
+            eco_db_exec('DELETE FROM login_attempts WHERE email = ?', [$email]);
+        } catch (\Throwable $e) {
+            error_log('login_attempts table missing? Run migration 012. ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Recovery link sent after 3 consecutive failed login attempts.
+     * The token is stored like any other password_resets code (bcrypt), single-use, 15 minutes.
+     */
+    public function resetViaLink()
+    {
+        $this->api->require_method('POST');
+        $this->api->rate_limit('resetlink:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 10, 900);
+
+        $in = $this->api->body();
+        $email    = strtolower(trim($in['email'] ?? ''));
+        $token    = trim((string) ($in['token'] ?? ''));
+        $password = (string) ($in['password'] ?? '');
+
+        if ($err = eco_password_policy_error($password)) $this->api->respond_error($err, 422);
+
+        $row = eco_db_one(
+            'SELECT * FROM password_resets
+             WHERE email = ? AND used = 0 AND expires_at > NOW()
+             ORDER BY id DESC LIMIT 1',
+            [$email]
+        );
+        if (!$row || (int) $row['attempts'] >= 5) {
+            $this->api->respond_error('Invalid o expired na ang link. Humiling ng bagong recovery link mula sa Log In.', 422);
+        }
+        if (!password_verify($token, $row['code_hash'])) {
+            eco_db_exec('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', [(int) $row['id']]);
+            $this->api->respond_error('Mali ang link.', 422);
+        }
+
+        eco_db_exec('UPDATE users SET password_hash = ? WHERE email = ?', [password_hash($password, PASSWORD_BCRYPT), $email]);
+        eco_db_exec('UPDATE password_resets SET used = 1 WHERE email = ?', [$email]);
+        $this->clear_login_attempts($email);
+        $u = eco_db_one('SELECT id FROM users WHERE email = ?', [$email]);
+        eco_audit((int) ($u['id'] ?? 0), 'recovery_link_used', "email:$email");
+        $this->api->respond(['ok' => true]);
+    }
+
+    /** Emails a one-time recovery link to the registered address for this account. */
+    private function send_recovery_link(array $user): void
+    {
+        $email = strtolower((string) $user['email']);
+
+        // One active token per account at a time.
+        eco_db_exec('UPDATE password_resets SET used = 1 WHERE email = ? AND used = 0', [$email]);
+
+        $token = bin2hex(random_bytes(32));
+        eco_db_exec(
+            'INSERT INTO password_resets (email, code_hash, expires_at) VALUES (?, ?, NOW() + INTERVAL 15 MINUTE)',
+            [$email, password_hash($token, PASSWORD_BCRYPT)]
+        );
+
+        $frontend = rtrim((string) config_item('frontend_url'), '/');
+        if ($frontend === '') {
+            $origins = array_values(array_filter(array_map('trim', explode(',', (string) getenv('CORS_ORIGIN')))));
+            $frontend = rtrim($origins[0] ?? 'http://localhost:5173', '/');
+        }
+        $link = $frontend . '/reset-password?email=' . rawurlencode($email) . '&token=' . $token;
+
+        $name = (string) ($user['name'] ?? $email);
+        $html = '<p>Hi ' . htmlspecialchars($name) . ',</p>'
+              . '<p>Nakatanggap kami ng tatlo (3) na maling password attempts sa account mo. Kung ikaw ito, i-reset ang password gamit ang link na ito (may bisa sa loob ng 15 minuto):</p>'
+              . '<p style="margin:24px 0"><a href="' . htmlspecialchars($link) . '" style="display:inline-block;background:#174d37;color:#c8f07e;padding:14px 28px;border-radius:999px;text-decoration:none;font-weight:bold">I-reset ang password</a></p>'
+              . '<p style="word-break:break-all;font-size:12px;color:#666">O kopyahin ang link na ito sa iyong browser:<br>' . htmlspecialchars($link) . '</p>'
+              . '<p>Kung hindi ikaw ang gumawa ng mga pagtatangkang ito, balewalain lang ang email na ito.</p>';
+
+        eco_send_mail($email, $name, 'EcoBin: I-reset ang iyong password', $html);
     }
 }

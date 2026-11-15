@@ -12,6 +12,7 @@ function eco_boot(): void
     if ($booted) return;
     $booted = true;
     $LAVA = lava_instance();
+
     $LAVA->call->database();
     $LAVA->call->library('api');
     $LAVA->config->load('eco');
@@ -283,4 +284,27 @@ function eco_send_mail(?string $to, string $toName, string $subject, string $htm
     ];
 
     return @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $html, implode("\r\n", $headers));
+}
+
+/**
+ * Password policy used by register, reset and staff-creation endpoints.
+ * Must be at least 8 characters and include an uppercase letter,
+ * a lowercase letter and a special (non-alphanumeric) character.
+ * Returns an error message, or null when the password passes.
+ */
+function eco_password_policy_error(string $password): ?string
+{
+    if (strlen($password) < 8) {
+        return 'Password must be at least 8 characters long.';
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        return 'Password must include a lowercase letter.';
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return 'Password must include an uppercase letter.';
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        return 'Password must include a special character (e.g. $, #, !).';
+    }
+    return null;
 }

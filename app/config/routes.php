@@ -38,6 +38,9 @@ $router->patch('/api/routes/{id}/stops/{stop}/complete',     'Dispatch::complete
 
 // Recyclable drop-offs and QR eco-ID
 $router->get('/api/hubs',                          'Dropoffs::hubs');
+$router->post('/api/hubs',                         'Dropoffs::createHub');
+$router->put('/api/hubs/{id}',                     'Dropoffs::updateHub');
+$router->delete('/api/hubs/{id}',                  'Dropoffs::deleteHub');
 $router->get('/api/dropoffs',                      'Dropoffs::index');
 $router->post('/api/dropoffs',                     'Dropoffs::store');
 $router->get('/api/dropoffs/lookup/{ecoId}',       'Dropoffs::lookup');
@@ -74,3 +77,4 @@ $router->get('/api/admin/audit-logs',       'Admin::auditLogs');
 $router->post('/api/auth/forgot-password', 'Auth::forgotPassword');
 $router->post('/api/auth/verify-reset-code', 'Auth::verifyResetCode');
 $router->post('/api/auth/reset-password',  'Auth::resetPassword');
+$router->post('/api/auth/reset-password-via-link', 'Auth::resetViaLink');

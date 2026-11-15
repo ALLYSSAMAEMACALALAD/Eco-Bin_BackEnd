@@ -18,6 +18,63 @@ class Dropoffs extends Controller
         $this->api->respond(['hubs' => $this->Dropoff_model->hubs()]);
     }
 
+    /** Admin adds a pickup hub. Body: name, address (optional). */
+    public function createHub()
+    {
+        $this->api->require_method('POST');
+        $user = eco_current_user(['admin']);
+        $in = $this->api->body();
+
+        $name = trim($in['name'] ?? '');
+        $address = trim($in['address'] ?? '') ?: null;
+
+        if ($name === '') $this->api->respond_error('Hub name is required.', 422);
+        if (mb_strlen($name) > 120) $this->api->respond_error('Hub name must be 120 characters or fewer.', 422);
+        if ($address !== null && mb_strlen($address) > 255) $this->api->respond_error('Address must be 255 characters or fewer.', 422);
+
+        $id = $this->Dropoff_model->create_hub($name, $address);
+        eco_audit((int) $user['id'], 'hub_created', "hub:$id", $name);
+        $this->api->respond(['id' => $id], 201);
+    }
+
+    /** Admin edits a pickup hub's name or address. Buffer-safe: missing fields keep current values. */
+    public function updateHub($id)
+    {
+        $this->api->require_method('PUT');
+        $user = eco_current_user(['admin']);
+        $hub = $this->Dropoff_model->hub((int) $id);
+        if (!$hub) $this->api->respond_error('Hub not found.', 404);
+
+        $in = $this->api->body();
+        $name = array_key_exists('name', $in) ? trim((string) $in['name']) : (string) $hub['name'];
+        $address = array_key_exists('address', $in) ? (trim((string) $in['address']) ?: null) : ($hub['address'] ?: null);
+
+        if ($name === '') $this->api->respond_error('Hub name is required.', 422);
+        if (mb_strlen($name) > 120) $this->api->respond_error('Hub name must be 120 characters or fewer.', 422);
+        if ($address !== null && mb_strlen($address) > 255) $this->api->respond_error('Address must be 255 characters or fewer.', 422);
+
+        $this->Dropoff_model->update_hub((int) $id, $name, $address);
+        eco_audit((int) $user['id'], 'hub_updated', "hub:$id", $name);
+        $this->api->respond(['ok' => true]);
+    }
+
+    /**
+     * Admin removes a pickup hub. Drop-off logs referencing it keep their data;
+     * hub_id is set to NULL by the schema (ON DELETE SET NULL).
+     */
+    public function deleteHub($id)
+    {
+        $this->api->require_method('DELETE');
+        $user = eco_current_user(['admin']);
+
+        $hub = $this->Dropoff_model->hub((int) $id);
+        if (!$hub) $this->api->respond_error('Hub not found.', 404);
+
+        $this->Dropoff_model->delete_hub((int) $id);
+        eco_audit((int) $user['id'], 'hub_deleted', "hub:$id", (string) $hub['name']);
+        $this->api->respond(['ok' => true]);
+    }
+
     /** Residents see their own drop-offs; staff see the latest 100 across all residents. */
     public function index()
     {

@@ -10,6 +10,27 @@ class Dropoff_model extends Model
         return eco_db_all('SELECT * FROM hubs ORDER BY name');
     }
 
+    public function hub(int $id): ?array
+    {
+        return eco_db_one('SELECT * FROM hubs WHERE id = ?', [$id]);
+    }
+
+    public function create_hub(string $name, ?string $address): int
+    {
+        return (int) eco_db_insert('INSERT INTO hubs (name, address) VALUES (?, ?)', [$name, $address]);
+    }
+
+    public function update_hub(int $id, string $name, ?string $address): void
+    {
+        eco_db_exec('UPDATE hubs SET name = ?, address = ? WHERE id = ?', [$name, $address, $id]);
+    }
+
+    public function delete_hub(int $id): void
+    {
+        // dropoff_logs.hub_id is ON DELETE SET NULL, so history survives without the hub.
+        eco_db_exec('DELETE FROM hubs WHERE id = ?', [$id]);
+    }
+
     public function for_resident(int $userId): array
     {
         return eco_db_all('SELECT d.*, h.name AS hub_name FROM dropoff_logs d LEFT JOIN hubs h ON h.id = d.hub_id WHERE d.resident_id = ? ORDER BY d.created_at DESC', [$userId]);
