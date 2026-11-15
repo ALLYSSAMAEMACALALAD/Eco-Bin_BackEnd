@@ -498,6 +498,31 @@ class Auth extends Controller
         $this->api->respond(['ok' => true]);
     }
 
+    /**
+     * Where recovery links should point. Uses FRONTEND_URL when set; otherwise picks the first
+     * https, non-localhost origin from CORS_ORIGIN (the deployed frontend) — never a local URL.
+     */
+    private function frontend_url_for_email(): string
+    {
+        $configured = rtrim(trim((string) config_item('frontend_url')), '/');
+        if ($configured !== '') return $configured;
+
+        $origins = [];
+        foreach (explode(',', (string) getenv('CORS_ORIGIN')) as $origin) {
+            $origin = rtrim(trim($origin), '/');
+            if ($origin === '') continue;
+            if (!preg_match('~^https?://~i', $origin)) $origin = 'https://' . $origin;
+            $origins[] = $origin;
+        }
+        if (empty($origins)) return 'http://localhost:5173';
+
+        foreach ($origins as $origin) {
+            $isLocal = (bool) preg_match('~^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$~i', $origin);
+            if (!$isLocal && preg_match('~^https://~i', $origin)) return $origin;
+        }
+        return $origins[0];
+    }
+
     /** Emails a one-time recovery link to the registered address for this account. */
     private function send_recovery_link(array $user): void
     {
@@ -512,11 +537,7 @@ class Auth extends Controller
             [$email, password_hash($token, PASSWORD_BCRYPT)]
         );
 
-        $frontend = rtrim((string) config_item('frontend_url'), '/');
-        if ($frontend === '') {
-            $origins = array_values(array_filter(array_map('trim', explode(',', (string) getenv('CORS_ORIGIN')))));
-            $frontend = rtrim($origins[0] ?? 'http://localhost:5173', '/');
-        }
+        $frontend = $this->frontend_url_for_email();
         $link = $frontend . '/reset-password?email=' . rawurlencode($email) . '&token=' . $token;
 
         $name = (string) ($user['name'] ?? $email);
