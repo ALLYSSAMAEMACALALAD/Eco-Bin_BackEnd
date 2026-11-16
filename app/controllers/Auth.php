@@ -26,6 +26,26 @@ class Auth extends Controller
         }
         if ($err = eco_password_policy_error($password)) $this->api->respond_error($err, 422);
         if ($barangay === '') $this->api->respond_error('Barangay is required.', 422);
+        // Must be one of the 70 barangays in Naujan, Oriental Mindoro.
+        $naujanBarangays = [
+            'Adrialuna', 'Andres Ilagan', 'Antipolo', 'Apitong', 'Arangin', 'Aurora', 'Bacungan',
+            'Bagong Buhay', 'Balite', 'Bancuro', 'Banuton', 'Barcenaga', 'Bayani', 'Buhangin', 'Caburo',
+            'Concepcion', 'Dao', 'Del Pilar', 'Estrella', 'Evangelista', 'Gamao', 'General Esco', 'Herrera',
+            'Inarawan', 'Kalinisan', 'Laguna', 'Mabini', 'Magtibay', 'Mahabang Parang', 'Malaya', 'Malinao',
+            'Malvar', 'Masagana', 'Masaguing', 'Melgar A', 'Melgar B', 'Metolza', 'Montelago', 'Montemayor',
+            'Motoderazo', 'Mulawin', 'Nag-Iba I', 'Nag-Iba II', 'Pagkakaisa', 'Paitan', 'Paniquian',
+            'Pinagsabangan I', 'Pinagsabangan II', 'Piñahan', 'Poblacion I', 'Poblacion II', 'Poblacion III',
+            'Sampaguita', 'San Agustin I', 'San Agustin II', 'San Andres', 'San Antonio', 'San Carlos',
+            'San Isidro', 'San Jose', 'San Luis', 'San Nicolas', 'San Pedro', 'Santa Cruz', 'Santa Isabel',
+            'Santa Maria', 'Santiago', 'Santo Niño', 'Tagumpay', 'Tigkan',
+        ];
+        $needle = function_exists('mb_strtolower') ? mb_strtolower($barangay, 'UTF-8') : strtolower($barangay);
+        $isNaujan = false;
+        foreach ($naujanBarangays as $b) {
+            $hay = function_exists('mb_strtolower') ? mb_strtolower($b, 'UTF-8') : strtolower($b);
+            if ($needle === $hay) { $isNaujan = true; break; }
+        }
+        if (!$isNaujan) $this->api->respond_error('Please choose a barangay in Naujan, Oriental Mindoro.', 422);
         if ($this->User_model->find_by_email($email)) $this->api->respond_error('An account with this email already exists.', 409);
 
         $id = $this->User_model->create_resident([
