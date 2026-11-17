@@ -50,12 +50,27 @@ class User_model extends Model
         );
     }
 
+    public function set_active(int $id, bool $active): void
+    {
+        eco_db_exec('UPDATE users SET is_active = ?, updated_at = NOW() WHERE id = ?', [$active ? 1 : 0, $id]);
+    }
+
+    public function update_password(int $id, string $passwordHash): void
+    {
+        eco_db_exec('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?', [$passwordHash, $id]);
+    }
+
+    public function delete_user(int $id): void
+    {
+        eco_db_exec('DELETE FROM users WHERE id = ?', [$id]);
+    }
+
     public function list_users(?string $role = null): array
     {
         if ($role) {
-            return eco_db_all('SELECT id, name, email, phone, barangay, role, eco_id, created_at FROM users WHERE role = ? ORDER BY name', [$role]);
+            return eco_db_all('SELECT id, name, email, phone, barangay, role, eco_id, is_active, created_at FROM users WHERE role = ? ORDER BY name', [$role]);
         }
-        return eco_db_all('SELECT id, name, email, phone, barangay, role, eco_id, created_at FROM users ORDER BY role, name');
+        return eco_db_all('SELECT id, name, email, phone, barangay, role, eco_id, is_active, created_at FROM users ORDER BY role, name');
     }
 
     public function residents_in_zone(string $zone): array

@@ -71,6 +71,9 @@ $router->post('/api/reports/history',       'Reports::history');
 $router->get('/api/admin/users',            'Admin::users');
 $router->post('/api/admin/users',           'Admin::createStaff');
 $router->put('/api/admin/users/{id}',        'Admin::updateUser');
+$router->patch('/api/admin/users/{id}/status',   'Admin::updateStatus');
+$router->patch('/api/admin/users/{id}/password', 'Admin::resetPassword');
+$router->delete('/api/admin/users/{id}',         'Admin::deleteUser');
 $router->get('/api/admin/audit-logs',       'Admin::auditLogs');
 
 // forgot password
